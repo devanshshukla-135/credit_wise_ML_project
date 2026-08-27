@@ -44,7 +44,17 @@ def train_model():
     target_col = 'Loan_Approved' if 'Loan_Approved' in df.columns else 'Loan_Status'
     X = df.drop(columns=[target_col])
     y = df[target_col]
-    
+
+    # Build DataFrame matching exact feature columns sequence
+    input_df = pd.DataFrame([row])[feature_cols]
+
+    # FORCE EVERYTHING TO NUMERIC (String Values Remove Fix)
+    input_df = input_df.apply(pd.to_numeric, errors='coerce').fillna(0.0)
+
+    try:
+        scaled_input = scaler.transform(input_df)
+        prediction = model.predict(scaled_input)
+        
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     
