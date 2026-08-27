@@ -105,16 +105,19 @@ if st.button("Predict Loan Status", use_container_width=True):
         'Credit_Score_sq': credit_score_sq
     }])
 
-# 1. Expected features load karein
+# 1. Load expected features
 with open('features.pkl', 'rb') as f:
     expected_features = pickle.load(f)
 
-# 2. Columns align karein (missing 0 honge, extra remove ho jayenge, order set ho jayega)
+# 2. Align input dataframe columns strictly to expected features
 input_df = input_df.reindex(columns=expected_features, fill_value=0)
 
-# 3. Scaling aur Prediction
-scaled_data = scaler.transform(input_df)
-prediction = model.predict(scaled_data)
+# 3. Transform data and preserve DataFrame structure with column names
+scaled_array = scaler.transform(input_df)
+scaled_df = pd.DataFrame(scaled_array, columns=expected_features)
+
+# 4. Predict
+prediction = model.predict(scaled_df)
 
 st.subheader("Result:")
 if prediction[0] == 1:
