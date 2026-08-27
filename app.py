@@ -105,23 +105,19 @@ if st.button("Predict Loan Status", use_container_width=True):
         'Credit_Score_sq': credit_score_sq
     }])
 
+# 1. Expected features load karein
 with open('features.pkl', 'rb') as f:
     expected_features = pickle.load(f)
 
-for col in expected_features:
-    if col not in input_df.columns: 
-        input_df[col] = 0
+# 2. Columns align karein (missing 0 honge, extra remove ho jayenge, order set ho jayega)
+input_df = input_df.reindex(columns=expected_features, fill_value=0)
 
-
-input_df = input_df[expected_features]
-
-
+# 3. Scaling aur Prediction
 scaled_data = scaler.transform(input_df)
 prediction = model.predict(scaled_data)
 
-   
 st.subheader("Result:")
 if prediction[0] == 1:
-        st.success("🎉 Congratulations! The Loan application is APPROVED.")
+    st.success("🎉 Congratulations! The Loan application is APPROVED.")
 else:
-        st.error("❌ We regret to inform you that the Loan application is REJECTED.")
+    st.error("❌ Sorry, The Loan application is REJECTED.")
