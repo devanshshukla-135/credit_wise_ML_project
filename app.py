@@ -122,7 +122,7 @@ prediction = model.predict(scaled_data)
 
    
 st.subheader("Result:")
-    if prediction[0] == 1:
+if prediction[0] == 1:
         st.success("🎉 Congratulations! The Loan application is APPROVED.")
-    else:
+else:
         st.error("❌ We regret to inform you that the Loan application is REJECTED.")
