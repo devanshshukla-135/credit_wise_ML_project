@@ -118,7 +118,6 @@ st.markdown("---")
 
 # --- 4. Prediction Logic ---
 if st.button("Predict Loan Approval Status", use_container_width=True):
-    # Standard 27 Feature Names used in model training
     all_27_features = [
         'Applicant_Income', 'Coapplicant_Income', 'Age', 'Dependents', 'Existing_Loans', 
         'Savings', 'Collateral_Value', 'Loan_Amount', 'Loan_Term', 'Education_Level',
@@ -131,10 +130,8 @@ if st.button("Predict Loan Approval Status", use_container_width=True):
         'Loan_Purpose_Home', 'Loan_Purpose_Personal'
     ]
 
-    # Row Initialization
     row = {feat: 0.0 for feat in all_27_features}
 
-    # Assign Numeric Values
     row['Applicant_Income'] = float(applicant_income)
     row['Coapplicant_Income'] = float(coapplicant_income)
     row['Age'] = float(applicant_age)
@@ -150,7 +147,6 @@ if st.button("Predict Loan Approval Status", use_container_width=True):
     row['Marital_Status_Single'] = float(marital_single_map[marital_status])
     row['Gender_Male'] = float(gender_male_map[gender])
 
-    # Assign Categorical One-Hot Flags
     active_dummies = [
         employment_map[employment_status],
         employer_cat_map[employer_category],
@@ -161,33 +157,30 @@ if st.button("Predict Loan Approval Status", use_container_width=True):
         if dummy in row:
             row[dummy] = 1.0
 
-    full_df = pd.DataFrame([row])[all_27_features]
+    full_df = pd.DataFrame([row])
 
     try:
-        # Align Features with Scaler expectations dynamically
+        # Step 1: Handle Feature alignment according to Scaler fit
         if hasattr(scaler, "feature_names_in_"):
-            scaler_cols = list(scaler.feature_names_in_)
-            scaler_input = full_df.reindex(columns=scaler_cols, fill_value=0.0)
-            scaled_array = scaler.transform(scaler_input)
+            full_df = full_df.reindex(columns=list(scaler.feature_names_in_), fill_value=0.0)
+            scaled_features = scaler.transform(full_df)
         else:
-            scaled_array = scaler.transform(full_df)
+            full_df = full_df[all_27_features]
+            # Check length expected by scaler vs model
+            scaler_n_features = getattr(scaler, "n_features_in_", 27)
+            
+            if scaler_n_features < 27:
+                scaled_part = scaler.transform(full_df.iloc[:, :scaler_n_features])
+                unscaled_part = full_df.iloc[:, scaler_n_features:].values
+                scaled_features = np.hstack((scaled_part, unscaled_part))
+            else:
+                scaled_features = scaler.transform(full_df)
 
-        # Ensure final shape matches model expectations (27 Features)
-        if scaled_array.shape[1] != 27:
-            final_features = full_df.values
-        else:
-            final_features = scaled_array
-
-        # Prediction evaluation (Using Predict Probability for accuracy)
-        if hasattr(model, "predict_proba"):
-            prob = model.predict_proba(final_features)[0][1]
-            is_approved = prob >= 0.50
-        else:
-            pred = model.predict(final_features)
-            is_approved = (pred[0] == 1)
+        # Step 2: Prediction Output
+        prediction = model.predict(scaled_features)
 
         st.subheader("Result:")
-        if is_approved:
+        if prediction[0] == 1:
             st.success("🎉 Congratulations! The Loan application is APPROVED.")
         else:
             st.error("❌ We regret to inform you that the Loan application is REJECTED.")
