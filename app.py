@@ -1,126 +1,107 @@
 
 import streamlit as st
-import pickle
-import numpy as np
 import pandas as pd
+import numpy as np
+import pickle
 
-# Load saved model and scaler
-with open('model.pkl', 'rb') as f:
-    model = pickle.load(f)
-
-with open('scaler.pkl', 'rb') as f:
-    scaler = pickle.load(f)
-
+# Page configuration
 st.set_page_config(page_title="Credit Wise Loan System", layout="wide")
 
-st.title("💳 Credit Wise Loan Approval System")
-st.write("Fill in the applicant details below to check loan eligibility.")
+st.title("Credit Wise Loan Approval System")
+st.write("Enter applicant details below to check loan eligibility.")
 
-# Layout in Columns
+# Load models and saved artifacts safely
+@st.cache_resource
+def load_artifacts():
+    with open('model.pkl', 'rb') as f:
+        model = pickle.load(f)
+    with open('scaler.pkl', 'rb') as f:
+        scaler = pickle.load(f)
+    with open('features.pkl', 'rb') as f:
+        expected_features = pickle.load(f)
+    return model, scaler, expected_features
+
+try:
+    model, scaler, expected_features = load_artifacts()
+except Exception as e:
+    st.error(f"Error loading model files: {e}")
+    st.stop()
+
+# User Inputs Form / Layout
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.subheader("Personal Details")
     age = st.number_input("Age", min_value=18, max_value=100, value=30)
     gender = st.selectbox("Gender", ["Male", "Female"])
     marital_status = st.selectbox("Marital Status", ["Single", "Married"])
     dependents = st.number_input("Dependents", min_value=0, max_value=10, value=0)
-    education_level = st.selectbox("Education Level", ["Undergraduate", "Graduate / Higher"])
+    education_level = st.selectbox("Education Level", ["Undergraduate", "Graduate", "Postgraduate"])
 
 with col2:
-    st.subheader("Financial & Employment")
-    coapplicant_income = st.number_input("Coapplicant Income", min_value=0.0, value=0.0)
-    savings = st.number_input("Savings", min_value=0.0, value=50000.0)
-    collateral_value = st.number_input("Collateral Value", min_value=0.0, value=100000.0)
-    employment_status = st.selectbox("Employment Status", ["Salaried", "Self-employed", "Unemployed"])
-    employer_category = st.selectbox("Employer Category", ["Government", "MNC", "Private", "Unemployed"])
+    income = st.number_input("Applicant Income", min_value=0.0, value=50000.0)
+    savings = st.number_input("Savings", min_value=0.0, value=10000.0)
+    collateral = st.number_input("Collateral Value", min_value=0.0, value=0.0)
+    employment_status = st.selectbox("Employment Status", ["Salaried", "Self-Employed", "Unemployed"])
+    employer_category = st.selectbox("Employer Category", ["Government", "Private", "Business", "Unemployed"])
 
 with col3:
-    st.subheader("Loan Details")
-    loan_amount = st.number_input("Loan Amount", min_value=1000.0, value=200000.0)
-    loan_term = st.number_input("Loan Term (Months)", min_value=6, max_value=360, value=36)
-    existing_loans = st.number_input("Existing Loans Count", min_value=0, max_value=10, value=0)
-    property_area = st.selectbox("Property Area", ["Semiurban", "Urban", "Rural"])
-    loan_purpose = st.selectbox("Loan Purpose", ["Car", "Education", "Home", "Personal", "Other"])
+    loan_amount = st.number_input("Loan Amount Requested", min_value=0.0, value=100000.0)
+    loan_term = st.number_input("Loan Term (Months)", min_value=1, value=36)
+    existing_loans = st.number_input("Existing Loans Count", min_value=0, value=0)
+    property_area = st.selectbox("Property Area", ["Urban", "Semiurban", "Rural"])
+    loan_purpose = st.selectbox("Loan Purpose", ["Car", "Education", "Home", "Personal"])
+
+col_sub1, col_sub2 = st.columns(2)
+with col_sub1:
     credit_score = st.number_input("Credit Score", min_value=300.0, max_value=900.0, value=750.0)
-    dti_ratio = st.number_input("DTI Ratio", min_value=0.0, max_value=1.0, value=0.3)
+with col_sub2:
+    dti_ratio = st.number_input("DTI Ratio", min_value=0.0, max_value=1.0, value=0.30)
 
-st.markdown("---")
-
-if st.button("Predict Loan Status", use_container_width=True):
-    # Engineered Features
-    dti_ratio_sq = dti_ratio ** 2
-    credit_score_sq = credit_score ** 2
-
-    # Categorical One-Hot Conversions
-    education_val = 1 if education_level == "Graduate / Higher" else 0
-    emp_salaried = 1 if employment_status == "Salaried" else 0
-    emp_self = 1 if employment_status == "Self-employed" else 0
-    emp_unemployed = 1 if employment_status == "Unemployed" else 0
-
-    marital_single = 1 if marital_status == "Single" else 0
-    gender_male = 1 if gender == "Male" else 0
-
-    emp_cat_gov = 1 if employer_category == "Government" else 0
-    emp_cat_mnc = 1 if employer_category == "MNC" else 0
-    emp_cat_pvt = 1 if employer_category == "Private" else 0
-    emp_cat_unemp = 1 if employer_category == "Unemployed" else 0
-
-    prop_semiurban = 1 if property_area == "Semiurban" else 0
-    prop_urban = 1 if property_area == "Urban" else 0
-
-    purpose_car = 1 if loan_purpose == "Car" else 0
-    purpose_edu = 1 if loan_purpose == "Education" else 0
-    purpose_home = 1 if loan_purpose == "Home" else 0
-    purpose_personal = 1 if loan_purpose == "Personal" else 0
-    
-
-    # Build DataFrame matching exact feature list and column order
-    input_df = pd.DataFrame([{
-        'Coapplicant_Income': coapplicant_income,
+if st.button("Predict Loan Status"):
+    # 1. Map manual categorical inputs to expected dummies
+    raw_data = {
         'Age': age,
-        'Dependents': dependents,
-        'Existing_Loans': existing_loans,
+        'Income': income,
         'Savings': savings,
-        'Collateral_Value': collateral_value,
+        'Collateral_Value': collateral,
         'Loan_Amount': loan_amount,
         'Loan_Term': loan_term,
-        'Education_Level': education_val,
-        'Employment_Status_Salaried': emp_salaried,
-        'Employment_Status_Self-employed': emp_self,
-        'Employment_Status_Unemployed': emp_unemployed,
-        'Marital_Status_Single': marital_single,
-        'Gender_Male': gender_male,
-        'Employer_Category_Government': emp_cat_gov,
-        'Employer_Category_MNC': emp_cat_mnc,
-        'Employer_Category_Private': emp_cat_pvt,
-        'Employer_Category_Unemployed': emp_cat_unemp,
-        'Property_Area_Semiurban': prop_semiurban,
-        'Property_Area_Urban': prop_urban,
-        'Loan_Purpose_Car': purpose_car,
-        'Loan_Purpose_Education': purpose_edu,
-        'Loan_Purpose_Home': purpose_home,
-        'Loan_Purpose_Personal': purpose_personal,
-        'DTI_Ratio_sq': dti_ratio_sq,
-        'Credit_Score_sq': credit_score_sq
-    }])
+        'Existing_Loans': existing_loans,
+        'Credit_Score': credit_score,
+        'DTI_Ratio': dti_ratio,
+        'Dependents': dependents,
+        'Gender_Male': 1 if gender == "Male" else 0,
+        'Marital_Status_Married': 1 if marital_status == "Married" else 0,
+        'Education_Graduate': 1 if education_level == "Graduate" else 0,
+        'Education_Postgraduate': 1 if education_level == "Postgraduate" else 0,
+        'Employment_Status_Salaried': 1 if employment_status == "Salaried" else 0,
+        'Employment_Status_Self-Employed': 1 if employment_status == "Self-Employed" else 0,
+        'Employer_Category_Government': 1 if employer_category == "Government" else 0,
+        'Employer_Category_Private': 1 if employer_category == "Private" else 0,
+        'Property_Area_Semiurban': 1 if property_area == "Semiurban" else 0,
+        'Property_Area_Urban': 1 if property_area == "Urban" else 0,
+        'Loan_Purpose_Car': 1 if loan_purpose == "Car" else 0,
+        'Loan_Purpose_Education': 1 if loan_purpose == "Education" else 0,
+        'Loan_Purpose_Home': 1 if loan_purpose == "Home" else 0,
+        'Loan_Purpose_Personal': 1 if loan_purpose == "Personal" else 0,
+        'DTI_Ratio_sq': dti_ratio ** 2,
+        'Credit_Score_sq': credit_score ** 2
+    }
 
-# 1. Load expected features
-with open('features.pkl', 'rb') as f:
-    expected_features = pickle.load(f)
+    input_df = pd.DataFrame([raw_data])
 
-# 2. Align input dataframe columns strictly to expected features
-input_df = input_df.reindex(columns=expected_features, fill_value=0)
+    # 2. Reindex strictly aligns column count and exact feature order from features.pkl
+    input_df = input_df.reindex(columns=expected_features, fill_value=0)
 
-# 3. Transform data and preserve DataFrame structure with column names
-scaled_array = scaler.transform(input_df)
-scaled_df = pd.DataFrame(scaled_array, columns=expected_features)
+    # 3. Scale and keep column names intact so Naive Bayes won't throw validation errors
+    scaled_array = scaler.transform(input_df)
+    scaled_df = pd.DataFrame(scaled_array, columns=expected_features)
 
-# 4. Predict
-prediction = model.predict(scaled_df)
+    # 4. Predict
+    prediction = model.predict(scaled_df)
 
-st.subheader("Result:")
-if prediction[0] == 1:
-    st.success("🎉 Congratulations! The Loan application is APPROVED.")
-else:
-    st.error("❌ Sorry, The Loan application is REJECTED.")
+    st.subheader("Result:")
+    if prediction[0] == 1:
+        st.success("🎉 Congratulations! The Loan application is APPROVED.")
+    else:
+        st.error("❌ Sorry, The Loan application is REJECTED.")
