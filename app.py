@@ -1,16 +1,13 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
 
-# Page configuration
 st.set_page_config(page_title="Credit Wise Loan System", layout="wide")
 
 st.title("Credit Wise Loan Approval System")
 st.write("Enter applicant details below to check loan eligibility.")
 
-# Load models and saved artifacts safely
 @st.cache_resource
 def load_artifacts():
     with open('model.pkl', 'rb') as f:
@@ -27,7 +24,6 @@ except Exception as e:
     st.error(f"Error loading model files: {e}")
     st.stop()
 
-# User Inputs Form / Layout
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -58,7 +54,6 @@ with col_sub2:
     dti_ratio = st.number_input("DTI Ratio", min_value=0.0, max_value=1.0, value=0.30)
 
 if st.button("Predict Loan Status"):
-    # 1. Map all possible encoded columns explicitly
     raw_data = {
         'Age': age,
         'Income': income,
@@ -96,25 +91,21 @@ if st.button("Predict Loan Status"):
 
     input_df = pd.DataFrame([raw_data])
 
-    # 2. Strict alignment with expected_features list
     if expected_features:
         input_df = input_df.reindex(columns=expected_features, fill_value=0)
 
-    # 3. Scale and Predict
     scaled_array = scaler.transform(input_df)
-    
-    # Optional check: If target_n doesn't match, align safely
+
     target_n = model.n_features_in_
-    if scaled_array.shape[1] != target_n:
+    if scaled_array.shape[1] < target_n:
+        scaled_array = np.pad(scaled_array, ((0, 0), (0, target_n - scaled_array.shape[1])), 'constant')
+    elif scaled_array.shape[1] > target_n:
         scaled_array = scaled_array[:, :target_n]
 
     prediction = model.predict(scaled_array)
 
     st.subheader("Result:")
     if prediction[0] == 1:
-        st.success("🎉 Congratulations! The Loan application is APPROVED.")
-    else:
-        st.error("❌ Sorry, The Loan application is REJECTED.")
         st.success("🎉 Congratulations! The Loan application is APPROVED.")
     else:
         st.error("❌ Sorry, The Loan application is REJECTED.")
