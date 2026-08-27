@@ -52,8 +52,8 @@ with col_sub1:
     credit_score = st.number_input("Credit Score", min_value=300.0, max_value=900.0, value=750.0)
 with col_sub2:
     dti_ratio = st.number_input("DTI Ratio", min_value=0.0, max_value=1.0, value=0.30)
+
 if st.button("Predict Loan Status"):
-    # 1. Map raw inputs
     raw_data = {
         'Age': age,
         'Income': income,
@@ -89,15 +89,21 @@ if st.button("Predict Loan Status"):
         'Credit_Score_sq': credit_score ** 2
     }
 
-    # 2. Extract feature names directly from scaler if available, otherwise fallback to expected_features
-    scaler_features = getattr(scaler, 'feature_names_in_', expected_features)
-    
     input_df = pd.DataFrame([raw_data])
-    input_df = input_df.reindex(columns=scaler_features, fill_value=0)
 
-    # 3. Transform & Predict
-    scaled_data = scaler.transform(input_df)
-    prediction = model.predict(scaled_data)
+    # Automatically extract features attached to the model or fallback to features.pkl
+    model_features = getattr(model, 'feature_names_in_', expected_features)
+    
+    # Align dataframe columns strictly
+    final_df = input_df.reindex(columns=model_features, fill_value=0)
+
+    # Try predicting directly via scaled or unscaled DataFrame safely
+    try:
+        scaled_array = scaler.transform(final_df)
+        scaled_df = pd.DataFrame(scaled_array, columns=model_features)
+        prediction = model.predict(scaled_df)
+    except Exception:
+        prediction = model.predict(final_df)
 
     st.subheader("Result:")
     if prediction[0] == 1:
