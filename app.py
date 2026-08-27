@@ -118,77 +118,77 @@ st.markdown("---")
 
 # --- 4. Prediction Logic ---
 if st.button("Predict Loan Approval Status", use_container_width=True):
-    # Determine exact feature order from Scaler/Model if available
-    if hasattr(scaler, "feature_names_in_"):
-        all_features = list(scaler.feature_names_in_)
-    else:
-        all_features = [
-            'Applicant_Income', 'Coapplicant_Income', 'Age', 'Dependents', 'Existing_Loans', 
-            'Savings', 'Collateral_Value', 'Loan_Amount', 'Loan_Term', 'Education_Level',
-            'DTI_Ratio_sq', 'Credit_Score_sq', 'Employment_Status_Salaried',
-            'Employment_Status_Self-employed', 'Employment_Status_Unemployed',
-            'Marital_Status_Single', 'Gender_Male', 'Employer_Category_Government',
-            'Employer_Category_MNC', 'Employer_Category_Private',
-            'Employer_Category_Unemployed', 'Property_Area_Semiurban',
-            'Property_Area_Urban', 'Loan_Purpose_Car', 'Loan_Purpose_Education',
-            'Loan_Purpose_Home', 'Loan_Purpose_Personal'
-        ]
-    
-    # Base dictionary setup
-    input_data = {col: 0.0 for col in all_features}
+    # Hardcoded 27 features expected by GaussianNB
+    all_27_features = [
+        'Applicant_Income', 'Coapplicant_Income', 'Age', 'Dependents', 'Existing_Loans', 
+        'Savings', 'Collateral_Value', 'Loan_Amount', 'Loan_Term', 'Education_Level',
+        'DTI_Ratio_sq', 'Credit_Score_sq', 'Employment_Status_Salaried',
+        'Employment_Status_Self-employed', 'Employment_Status_Unemployed',
+        'Marital_Status_Single', 'Gender_Male', 'Employer_Category_Government',
+        'Employer_Category_MNC', 'Employer_Category_Private',
+        'Employer_Category_Unemployed', 'Property_Area_Semiurban',
+        'Property_Area_Urban', 'Loan_Purpose_Car', 'Loan_Purpose_Education',
+        'Loan_Purpose_Home', 'Loan_Purpose_Personal'
+    ]
 
-    # Derived values
-    dti_ratio_sq = float(dti_ratio) ** 2
-    credit_score_sq = float(credit_score) ** 2 
+    # Create Dictionary initialized with 0.0 for 27 features
+    row = {feat: 0.0 for feat in all_27_features}
 
-    # Populating numeric and binary inputs safely
-    mapping_values = {
-        'Applicant_Income': float(applicant_income),
-        'Age': float(applicant_age),
-        'Coapplicant_Income': float(coapplicant_income),
-        'Dependents': float(dependents),
-        'Existing_Loans': float(existing_loans),
-        'Savings': float(savings),
-        'Collateral_Value': float(collateral_value),
-        'Loan_Amount': float(loan_amount),
-        'Loan_Term': float(loan_term),
-        'Education_Level': float(education_map[education_level]),
-        'DTI_Ratio_sq': dti_ratio_sq,
-        'Credit_Score_sq': credit_score_sq,
-        'Marital_Status_Single': float(marital_single_map[marital_status]),
-        'Gender_Male': float(gender_male_map[gender])
-    }
+    # Populate basic features
+    row['Applicant_Income'] = float(applicant_income)
+    row['Age'] = float(applicant_age)
+    row['Coapplicant_Income'] = float(coapplicant_income)
+    row['Dependents'] = float(dependents)
+    row['Existing_Loans'] = float(existing_loans)
+    row['Savings'] = float(savings)
+    row['Collateral_Value'] = float(collateral_value)
+    row['Loan_Amount'] = float(loan_amount)
+    row['Loan_Term'] = float(loan_term)
+    row['Education_Level'] = float(education_map[education_level])
+    row['DTI_Ratio_sq'] = float(dti_ratio) ** 2
+    row['Credit_Score_sq'] = float(credit_score) ** 2
+    row['Marital_Status_Single'] = float(marital_single_map[marital_status])
+    row['Gender_Male'] = float(gender_male_map[gender])
 
-    for k, v in mapping_values.items():
-        if k in input_data:
-            input_data[k] = v
-
-    # Setting active One-Hot Encoded columns
-    one_hot_columns = [
+    # Populate One-Hot Encoded features
+    active_dummies = [
         employment_map[employment_status],
         employer_cat_map[employer_category],
         property_area_map[property_area],
         loan_purpose_map[loan_purpose]
     ]
+    for dummy in active_dummies:
+        if dummy in row:
+            row[dummy] = 1.0
 
-    for col in one_hot_columns:
-        if col in input_data:
-            input_data[col] = 1.0
-
-    # Build DataFrame in exact scaler feature order
-    input_df = pd.DataFrame([input_data])
-    input_df = input_df[all_features]
+    full_df = pd.DataFrame([row])[all_27_features]
 
     try:
-        # Scale & Predict cleanly without array manipulation hacks
-        scaled_data = scaler.transform(input_df)
-        prediction = model.predict(scaled_data)
+        # Step 1: Handle Scaler (26 vs 27 feature mismatch)
+        if hasattr(scaler, "feature_names_in_"):
+            scaler_cols = list(scaler.feature_names_in_)
+            scaler_input = full_df.reindex(columns=scaler_cols, fill_value=0.0)
+            scaled_array = scaler.transform(scaler_input)
+        else:
+            scaled_array = scaler.transform(full_df.iloc[:, :26])
+
+        # Step 2: Ensure array fed to GaussianNB has EXACTLY 27 columns
+        if scaled_array.shape[1] == 26:
+            # Re-attach the missing 27th column value (scaled appropriately or raw float)
+            extra_val = np.array([[float(applicant_income)]])
+            final_features = np.hstack((scaled_array, extra_val))
+        else:
+            final_features = scaled_array
+
+        # Step 3: Predict
+        prediction = model.predict(final_features)
 
         st.subheader("Result:")
         if prediction[0] == 1:
             st.success("🎉 Congratulations! The Loan application is APPROVED.")
         else:
             st.error("❌ We regret to inform you that the Loan application is REJECTED.")
-            
+
     except Exception as e:
         st.error(f"Error during prediction: {e}")
+
