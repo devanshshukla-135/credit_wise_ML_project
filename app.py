@@ -121,7 +121,7 @@ scaled_data = scaler.transform(df)
 prediction = model.predict(scaled_data)
 
    
-    st.subheader("Result:")
+st.subheader("Result:")
     if prediction[0] == 1:
         st.success("🎉 Congratulations! The Loan application is APPROVED.")
     else:
