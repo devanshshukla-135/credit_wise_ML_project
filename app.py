@@ -126,8 +126,10 @@ with col4:
 st.markdown("---")
 
 if st.button("Predict Loan Approval Status", use_container_width=True):
+    # Initialize dictionary with all expected features set to 0.0
     row = {feat: 0.0 for feat in feature_cols}
 
+    # Map Numeric & Binary Inputs
     if 'Applicant_Income' in row: row['Applicant_Income'] = float(applicant_income)
     if 'Coapplicant_Income' in row: row['Coapplicant_Income'] = float(coapplicant_income)
     if 'Age' in row: row['Age'] = float(applicant_age)
@@ -142,9 +144,12 @@ if st.button("Predict Loan Approval Status", use_container_width=True):
     if 'Credit_Score_sq' in row: row['Credit_Score_sq'] = float(credit_score ** 2)
     if 'DTI_Ratio' in row: row['DTI_Ratio'] = float(dti_ratio)
     if 'Credit_Score' in row: row['Credit_Score'] = float(credit_score)
+    
+    # UI par User "Married"/"Single" hi select karega, par backend me binary float ban jayega:
     if 'Marital_Status_Single' in row: row['Marital_Status_Single'] = float(marital_single_map[marital_status])
     if 'Gender_Male' in row: row['Gender_Male'] = float(gender_male_map[gender])
 
+    # Map One-Hot Categorical Features
     active_dummies = [
         employment_map[employment_status],
         employer_cat_map[employer_category],
@@ -155,7 +160,11 @@ if st.button("Predict Loan Approval Status", use_container_width=True):
         if dummy in row:
             row[dummy] = 1.0
 
+    # Build DataFrame matching exact feature columns sequence
     input_df = pd.DataFrame([row])[feature_cols]
+    
+    # 💡 IMPORTANT FIX: Sabhi columns ko strictly numeric float convert karein
+    input_df = input_df.astype(float)
 
     try:
         scaled_input = scaler.transform(input_df)
