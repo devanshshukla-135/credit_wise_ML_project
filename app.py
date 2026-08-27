@@ -88,22 +88,23 @@ if st.button("Predict Loan Status"):
         'Credit_Score_sq': credit_score ** 2
     }
 
-    input_df = pd.DataFrame([raw_data])
+input_df = pd.DataFrame([raw_data])
 
-    # 2. Features align karein aur exactly 27 features set karein
+    # 1. Align features strictly with features.pkl order
     if expected_features:
         input_df = input_df.reindex(columns=expected_features, fill_value=0)
 
-    # Force exact 27 features match for GaussianNB
-    target_n = model.n_features_in_  # Always returns 27
+    # 2. Scale ONLY ONCE
     scaled_array = scaler.transform(input_df)
 
+    # 3. Ensure exact shape matches Naive Bayes model requirement
+    target_n = model.n_features_in_
     if scaled_array.shape[1] < target_n:
         scaled_array = np.pad(scaled_array, ((0, 0), (0, target_n - scaled_array.shape[1])), 'constant')
     elif scaled_array.shape[1] > target_n:
         scaled_array = scaled_array[:, :target_n]
 
-    # 3. Predict
+    # 4. Predict
     prediction = model.predict(scaled_array)
 
     st.subheader("Result:")
