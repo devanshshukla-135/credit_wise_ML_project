@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pickle
-import os
+from sklearn.preprocessing import StandardScaler
+from sklearn.naive_bayes import GaussianNB
 
 st.set_page_config(page_title="Credit Wise Loan System", layout="centered", page_icon="💳")
 
@@ -20,22 +20,46 @@ st.title("💳 Credit Wise Loan Approval System")
 st.markdown("Enter applicant details below to check loan eligibility.")
 
 @st.cache_resource
-def load_artifacts():
-    try:
-        base_dir = 'saved_models' if os.path.exists('saved_models') else '.'
-        with open(os.path.join(base_dir, 'model.pkl'), 'rb') as f:
-            model = pickle.load(f)
-        with open(os.path.join(base_dir, 'scaler.pkl'), 'rb') as f:
-            scaler = pickle.load(f)
-        with open(os.path.join(base_dir, 'features.pkl'), 'rb') as f:
-            features = pickle.load(f)
-        return model, scaler, features
-    except Exception as e:
-        st.error(f"Error loading model files: {e}")
-        st.stop()
+def train_model():
+    df = pd.read_csv('loan_approval_data.csv')
+    
+    # Feature Engineering matching your Notebook
+    df['DTI_Ratio_sq'] = df['DTI_Ratio'] ** 2
+    df['Credit_Score_sq'] = df['Credit_Score'] ** 2
+    
+    education_map = {'Undergraduate': 0, 'Graduate / Higher': 1}
+    gender_male_map = {'Female': 0, 'Male': 1}
+    marital_single_map = {'Married': 0, 'Single': 1}
+    
+    if 'Education_Level' in df.columns:
+        df['Education_Level'] = df['Education_Level'].map(education_map)
+    if 'Gender_Male' in df.columns:
+        df['Gender_Male'] = df['Gender_Male'].map(gender_male_map)
+    if 'Marital_Status_Single' in df.columns:
+        df['Marital_Status_Single'] = df['Marital_Status_Single'].map(marital_single_map)
+        
+    categorical_cols = ['Employment_Status', 'Employer_Category', 'Property_Area', 'Loan_Purpose']
+    df = pd.get_dummies(df, columns=[c for c in categorical_cols if c in df.columns], drop_first=False)
+    
+    target_col = 'Loan_Approved' if 'Loan_Approved' in df.columns else 'Loan_Status'
+    X = df.drop(columns=[target_col])
+    y = df[target_col]
+    
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    
+    model = GaussianNB()
+    model.fit(X_scaled, y)
+    
+    return model, scaler, list(X.columns)
 
-model, scaler, feature_cols = load_artifacts()
+try:
+    model, scaler, feature_cols = train_model()
+except Exception as e:
+    st.error(f"Error initializing training pipeline: {e}")
+    st.stop()
 
+# Mappings for UI
 education_map = {'Undergraduate': 0, 'Graduate / Higher': 1}
 gender_male_map = {'Female': 0, 'Male': 1}
 marital_single_map = {'Married': 0, 'Single': 1}
@@ -102,10 +126,8 @@ with col4:
 st.markdown("---")
 
 if st.button("Predict Loan Approval Status", use_container_width=True):
-    # Initialize dictionary with all expected features set to 0.0
     row = {feat: 0.0 for feat in feature_cols}
 
-    # Map Numeric Inputs
     if 'Applicant_Income' in row: row['Applicant_Income'] = float(applicant_income)
     if 'Coapplicant_Income' in row: row['Coapplicant_Income'] = float(coapplicant_income)
     if 'Age' in row: row['Age'] = float(applicant_age)
@@ -123,7 +145,6 @@ if st.button("Predict Loan Approval Status", use_container_width=True):
     if 'Marital_Status_Single' in row: row['Marital_Status_Single'] = float(marital_single_map[marital_status])
     if 'Gender_Male' in row: row['Gender_Male'] = float(gender_male_map[gender])
 
-    # Map One-Hot Categorical Features
     active_dummies = [
         employment_map[employment_status],
         employer_cat_map[employer_category],
@@ -134,7 +155,6 @@ if st.button("Predict Loan Approval Status", use_container_width=True):
         if dummy in row:
             row[dummy] = 1.0
 
-    # Build DataFrame matching exact feature columns sequence
     input_df = pd.DataFrame([row])[feature_cols]
 
     try:
