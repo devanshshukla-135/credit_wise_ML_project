@@ -58,7 +58,7 @@ with col_sub2:
     dti_ratio = st.number_input("DTI Ratio", min_value=0.0, max_value=1.0, value=0.30)
 
 if st.button("Predict Loan Status"):
-    # 1. Map manual categorical inputs to expected dummies
+    # 1. Map manual categorical inputs
     raw_data = {
         'Age': age,
         'Income': income,
@@ -89,23 +89,23 @@ if st.button("Predict Loan Status"):
     }
 
     input_df = pd.DataFrame([raw_data])
-# 1. Scaler aur Model dono ke exact feature count ke hisab se array set karein
-    n_expected = scaler.n_features_in_
-    
-    # Raw values ka numeric array banayein
-    raw_values = np.array(list(raw_data.values()))
-    
-    # Exact expected features length tak pad (0 fill) ya truncate karein
-    if len(raw_values) < n_expected:
-        padded_values = np.pad(raw_values, (0, n_expected - len(raw_values)), 'constant')
-    else:
-        padded_values = raw_values[:n_expected]
-        
-    input_array = padded_values.reshape(1, -1)
 
-    # 2. Scale and Predict using NumPy array (bypasses DataFrame feature name mismatch)
-    scaled_data = scaler.transform(input_array)
-    prediction = model.predict(scaled_data)
+    # 2. Features align karein aur exactly 27 features set karein
+    if expected_features:
+        input_df = input_df.reindex(columns=expected_features, fill_value=0)
+
+    # Force exact 27 features match for GaussianNB
+    target_n = model.n_features_in_  # Always returns 27
+    scaled_array = scaler.transform(input_df)
+
+    if scaled_array.shape[1] < target_n:
+        scaled_array = np.pad(scaled_array, ((0, 0), (0, target_n - scaled_array.shape[1])), 'constant')
+    elif scaled_array.shape[1] > target_n:
+        scaled_array = scaled_array[:, :target_n]
+
+    # 3. Predict
+    prediction = model.predict(scaled_array)
+
     st.subheader("Result:")
     if prediction[0] == 1:
         st.success("🎉 Congratulations! The Loan application is APPROVED.")
