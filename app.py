@@ -89,17 +89,23 @@ if st.button("Predict Loan Status"):
     }
 
     input_df = pd.DataFrame([raw_data])
+# 1. Scaler aur Model dono ke exact feature count ke hisab se array set karein
+    n_expected = scaler.n_features_in_
+    
+    # Raw values ka numeric array banayein
+    raw_values = np.array(list(raw_data.values()))
+    
+    # Exact expected features length tak pad (0 fill) ya truncate karein
+    if len(raw_values) < n_expected:
+        padded_values = np.pad(raw_values, (0, n_expected - len(raw_values)), 'constant')
+    else:
+        padded_values = raw_values[:n_expected]
+        
+    input_array = padded_values.reshape(1, -1)
 
-    # 2. Reindex strictly aligns column count and exact feature order from features.pkl
-    input_df = input_df.reindex(columns=expected_features, fill_value=0)
-
-    # 3. Scale and keep column names intact so Naive Bayes won't throw validation errors
-    scaled_array = scaler.transform(input_df)
-    scaled_df = pd.DataFrame(scaled_array, columns=expected_features)
-
-    # 4. Predict
-    prediction = model.predict(scaled_df)
-
+    # 2. Scale and Predict using NumPy array (bypasses DataFrame feature name mismatch)
+    scaled_data = scaler.transform(input_array)
+    prediction = model.predict(scaled_data)
     st.subheader("Result:")
     if prediction[0] == 1:
         st.success("🎉 Congratulations! The Loan application is APPROVED.")
