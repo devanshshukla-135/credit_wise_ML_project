@@ -5,16 +5,23 @@ import pickle
 
 st.title("Credit Wise Loan System")
 
-# 1. Model aur Scaler/Encoder load karein
+# 1. Model aur Scaler Load Karein
+# Important: Agar scaling training mein use ki thi, toh scaler.pkl load karna must hai.
 @st.cache_resource
 def load_artifacts():
-    with open("model.pkl", "rb") as f:
-        model = pickle.load(f)
-    return model
+    try:
+        with open("model.pkl", "rb") as f:
+            model = pickle.load(f)
+        # Agar scaling lagayi thi training mein, toh 'scaler.pkl' load karo.
+        # scaler = pickle.load(open("scaler.pkl", "rb"))
+        return model # , scaler (agar scaler use kiya ho toh uncomment karein)
+    except FileNotFoundError:
+        st.error("Error: 'model.pkl' (ya scaler.pkl) nahi mila. Please files upload karein.")
+        st.stop()
 
 model = load_artifacts()
 
-# 2. Form Inputs (Apne app ke hisab se fields adjust karein)
+# 2. Form Inputs (Make sure unique values exact training data jaisi hon)
 st.subheader("Applicant Information")
 
 col1, col2 = st.columns(2)
@@ -35,48 +42,47 @@ with col2:
 
 # 3. Prediction Logic
 if st.button("Predict Loan Status"):
-    # Raw input data dictionary
-    raw_data = {
-        'ApplicantIncome': applicant_income,
-        'CoapplicantIncome': coapplicant_income,
-        'LoanAmount': loan_amount,
-        'Loan_Amount_Term': loan_term,
-        'Credit_History': credit_history,
-        'Gender': gender,
-        'Married': married,
-        'Education': education,
-        'Self_Employed': self_employed,
-        'Property_Area': property_area,
-        'Dependents': dependents
-    }
+    # manual mapping dictionaries (training data logic ke hisab se)
+    gender_map = {'Male': 1, 'Female': 0}
+    married_map = {'Yes': 1, 'No': 0}
+    education_map = {'Graduate': 1, 'Not Graduate': 0}
+    self_employed_map = {'Yes': 1, 'No': 0}
+    property_area_map = {'Rural': 0, 'Semiurban': 1, 'Urban': 2}
+    dependents_map = {'0': 0, '1': 1, '2': 2, '3+': 3}
 
-    df_input = pd.DataFrame([raw_data])
+    # input data array taiyar karo (EXACT feature order mein jo training mein tha)
+    # GaussianNB direct manual encoded values accept karta hai agar scalar used na ho.
+    raw_data = np.array([[
+        applicant_income,
+        coapplicant_income,
+        loan_amount,
+        loan_term,
+        credit_history,
+        gender_map[gender],
+        married_map[married],
+        education_map[education],
+        self_employed_map[self_employed],
+        property_area_map[property_area],
+        dependents_map[dependents]
+    ]])
 
-    # Category encoding (Training ke exact logic ke saath match karein)
-    df_encoded = pd.get_dummies(df_input)
-
-    # -------------------------------------------------------------
-    # CRITICAL FIX: Align features with model's expected inputs (27 features)
-    # -------------------------------------------------------------
-    if hasattr(model, "feature_names_in_"):
-        expected_cols = model.feature_names_in_
-        # Reindex missing columns ko 0 se fill karega aur exact order set karega
-        df_encoded = df_encoded.reindex(columns=expected_cols, fill_value=0)
-    
     try:
+        # Step: Agar StandardScaler used tha, yahan transform apply karein:
+        # raw_data = scaler.transform(raw_data) 
+
         # Prediction
-        prediction = model.predict(df_encoded)[0]
+        prediction = model.predict(raw_data)[0]
         
-        # Binary Classification Check (1/0 ya 'Y'/'N')
-        if prediction == 1 or str(prediction).upper() == 'Y':
+        # Binary Classification Check (1/0)
+        if prediction == 1:
             st.success("🎉 Congratulations! Loan Approved.")
         else:
             st.error("❌ Sorry! Loan Rejected.")
 
-        # Agar probability threshold check karni ho:
-        if hasattr(model, "predict_proba"):
-            proba = model.predict_proba(df_encoded)[0]
-            st.info(f"Approval Probability: {proba[1]*100:.2f}% | Rejection Probability: {proba[0]*100:.2f}%")
-
     except Exception as e:
-        st.error(f"Error during prediction: {e}")
+        # Detailed error reporting feature count ke liye
+        if "X has" in str(e):
+             st.error(f"Error: Feature Mismatch. Model expected 27 features, but received {raw_data.shape[1]}. **This requires model retraining with numerical features only.**")
+        else:
+             st.error(f"Prediction Error: {e}")
+
