@@ -52,41 +52,51 @@ with col_sub1:
     credit_score = st.number_input("Credit Score", min_value=300.0, max_value=900.0, value=750.0)
 with col_sub2:
     dti_ratio = st.number_input("DTI Ratio", min_value=0.0, max_value=1.0, value=0.30)
-
 if st.button("Predict Loan Status"):
-    # Raw values array directly from inputs
-    raw_inputs = [
-        age, income, savings, collateral, loan_amount, loan_term,
-        existing_loans, credit_score, dti_ratio, dependents,
-        1 if gender == "Male" else 0,
-        1 if marital_status == "Married" else 0,
-        1 if education_level == "Graduate" else 0,
-        1 if education_level == "Postgraduate" else 0,
-        1 if employment_status == "Salaried" else 0,
-        1 if employment_status == "Self-Employed" else 0,
-        1 if employer_category == "Government" else 0,
-        1 if employer_category == "Private" else 0,
-        1 if property_area == "Semiurban" else 0,
-        1 if property_area == "Urban" else 0,
-        1 if loan_purpose == "Car" else 0,
-        1 if loan_purpose == "Education" else 0,
-        1 if loan_purpose == "Home" else 0,
-        1 if loan_purpose == "Personal" else 0,
-        dti_ratio ** 2,
-        credit_score ** 2
-    ]
+    # 1. Map raw inputs
+    raw_data = {
+        'Age': age,
+        'Income': income,
+        'Savings': savings,
+        'Collateral_Value': collateral,
+        'Loan_Amount': loan_amount,
+        'Loan_Term': loan_term,
+        'Existing_Loans': existing_loans,
+        'Credit_Score': credit_score,
+        'DTI_Ratio': dti_ratio,
+        'Dependents': dependents,
+        'Gender_Male': 1 if gender == "Male" else 0,
+        'Gender_Female': 1 if gender == "Female" else 0,
+        'Marital_Status_Married': 1 if marital_status == "Married" else 0,
+        'Marital_Status_Single': 1 if marital_status == "Single" else 0,
+        'Education_Graduate': 1 if education_level == "Graduate" else 0,
+        'Education_Postgraduate': 1 if education_level == "Postgraduate" else 0,
+        'Education_Undergraduate': 1 if education_level == "Undergraduate" else 0,
+        'Employment_Status_Salaried': 1 if employment_status == "Salaried" else 0,
+        'Employment_Status_Self-Employed': 1 if employment_status == "Self-Employed" else 0,
+        'Employment_Status_Unemployed': 1 if employment_status == "Unemployed" else 0,
+        'Employer_Category_Government': 1 if employer_category == "Government" else 0,
+        'Employer_Category_Private': 1 if employer_category == "Private" else 0,
+        'Employer_Category_Business': 1 if employer_category == "Business" else 0,
+        'Property_Area_Semiurban': 1 if property_area == "Semiurban" else 0,
+        'Property_Area_Urban': 1 if property_area == "Urban" else 0,
+        'Property_Area_Rural': 1 if property_area == "Rural" else 0,
+        'Loan_Purpose_Car': 1 if loan_purpose == "Car" else 0,
+        'Loan_Purpose_Education': 1 if loan_purpose == "Education" else 0,
+        'Loan_Purpose_Home': 1 if loan_purpose == "Home" else 0,
+        'Loan_Purpose_Personal': 1 if loan_purpose == "Personal" else 0,
+        'DTI_Ratio_sq': dti_ratio ** 2,
+        'Credit_Score_sq': credit_score ** 2
+    }
 
-    # Force strict 27 feature length matching GaussianNB
-    target_n = model.n_features_in_  # 27
-    if len(raw_inputs) < target_n:
-        raw_inputs += [0] * (target_n - len(raw_inputs))
-    else:
-        raw_inputs = raw_inputs[:target_n]
+    # 2. Extract feature names directly from scaler if available, otherwise fallback to expected_features
+    scaler_features = getattr(scaler, 'feature_names_in_', expected_features)
+    
+    input_df = pd.DataFrame([raw_data])
+    input_df = input_df.reindex(columns=scaler_features, fill_value=0)
 
-    input_array = np.array(raw_inputs).reshape(1, -1)
-
-    # Scale and Predict
-    scaled_data = scaler.transform(input_array)
+    # 3. Transform & Predict
+    scaled_data = scaler.transform(input_df)
     prediction = model.predict(scaled_data)
 
     st.subheader("Result:")
