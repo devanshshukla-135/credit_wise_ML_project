@@ -118,72 +118,70 @@ st.markdown("---")
 
 # --- 4. Prediction Logic ---
 if st.button("Predict Loan Approval Status", use_container_width=True):
-    all_features = [
-        'Applicant_Income', 'Coapplicant_Income', 'Age', 'Dependents', 'Existing_Loans', 
-        'Savings', 'Collateral_Value', 'Loan_Amount', 'Loan_Term', 'Education_Level',
-        'DTI_Ratio_sq', 'Credit_Score_sq', 'Employment_Status_Salaried',
-        'Employment_Status_Self-employed', 'Employment_Status_Unemployed',
-        'Marital_Status_Single', 'Gender_Male', 'Employer_Category_Government',
-        'Employer_Category_MNC', 'Employer_Category_Private',
-        'Employer_Category_Unemployed', 'Property_Area_Semiurban',
-        'Property_Area_Urban', 'Loan_Purpose_Car', 'Loan_Purpose_Education',
-        'Loan_Purpose_Home', 'Loan_Purpose_Personal'
-    ]
+    # Determine exact feature order from Scaler/Model if available
+    if hasattr(scaler, "feature_names_in_"):
+        all_features = list(scaler.feature_names_in_)
+    else:
+        all_features = [
+            'Applicant_Income', 'Coapplicant_Income', 'Age', 'Dependents', 'Existing_Loans', 
+            'Savings', 'Collateral_Value', 'Loan_Amount', 'Loan_Term', 'Education_Level',
+            'DTI_Ratio_sq', 'Credit_Score_sq', 'Employment_Status_Salaried',
+            'Employment_Status_Self-employed', 'Employment_Status_Unemployed',
+            'Marital_Status_Single', 'Gender_Male', 'Employer_Category_Government',
+            'Employer_Category_MNC', 'Employer_Category_Private',
+            'Employer_Category_Unemployed', 'Property_Area_Semiurban',
+            'Property_Area_Urban', 'Loan_Purpose_Car', 'Loan_Purpose_Education',
+            'Loan_Purpose_Home', 'Loan_Purpose_Personal'
+        ]
     
-    input_df = pd.DataFrame(columns=all_features)
-    input_df.loc[0] = [0.0] * len(all_features)
+    # Base dictionary setup
+    input_data = {col: 0.0 for col in all_features}
 
-    dti_ratio_sq = dti_ratio ** 2
+    # Derived values
+    dti_ratio_sq = float(dti_ratio) ** 2
     credit_score_sq = float(credit_score) ** 2 
 
-    input_df['Applicant_Income'] = float(applicant_income)
-    input_df['Age'] = float(applicant_age)
-    input_df['Coapplicant_Income'] = float(coapplicant_income)
-    input_df['Dependents'] = float(dependents)
-    input_df['Existing_Loans'] = float(existing_loans)
-    input_df['Savings'] = float(savings)
-    input_df['Collateral_Value'] = float(collateral_value)
-    input_df['Loan_Amount'] = float(loan_amount)
-    input_df['Loan_Term'] = float(loan_term)
-    input_df['Education_Level'] = float(education_map[education_level])
-    input_df['DTI_Ratio_sq'] = dti_ratio_sq
-    input_df['Credit_Score_sq'] = credit_score_sq
+    # Populating numeric and binary inputs safely
+    mapping_values = {
+        'Applicant_Income': float(applicant_income),
+        'Age': float(applicant_age),
+        'Coapplicant_Income': float(coapplicant_income),
+        'Dependents': float(dependents),
+        'Existing_Loans': float(existing_loans),
+        'Savings': float(savings),
+        'Collateral_Value': float(collateral_value),
+        'Loan_Amount': float(loan_amount),
+        'Loan_Term': float(loan_term),
+        'Education_Level': float(education_map[education_level]),
+        'DTI_Ratio_sq': dti_ratio_sq,
+        'Credit_Score_sq': credit_score_sq,
+        'Marital_Status_Single': float(marital_single_map[marital_status]),
+        'Gender_Male': float(gender_male_map[gender])
+    }
 
-    input_df['Marital_Status_Single'] = float(marital_single_map[marital_status])
-    input_df['Gender_Male'] = float(gender_male_map[gender])
+    for k, v in mapping_values.items():
+        if k in input_data:
+            input_data[k] = v
 
-    one_hot_columns_to_fill = [
+    # Setting active One-Hot Encoded columns
+    one_hot_columns = [
         employment_map[employment_status],
         employer_cat_map[employer_category],
         property_area_map[property_area],
         loan_purpose_map[loan_purpose]
     ]
 
-    for col in one_hot_columns_to_fill:
-        if col in input_df.columns:
-            input_df[col] = 1.0
+    for col in one_hot_columns:
+        if col in input_data:
+            input_data[col] = 1.0
+
+    # Build DataFrame in exact scaler feature order
+    input_df = pd.DataFrame([input_data])
+    input_df = input_df[all_features]
 
     try:
-        # Check scaler's expected features dynamically
-        if hasattr(scaler, "feature_names_in_"):
-            scaler_order = list(scaler.feature_names_in_)
-            aligned_input = input_df.reindex(columns=scaler_order).fillna(0)
-        else:
-            aligned_input = input_df.copy()
-
-        # Transform using Scaler
-        scaled_data = scaler.transform(aligned_input)
-
-        # Check model's expected feature count dynamically
-        expected_model_features = getattr(model, "n_features_in_", 27)
-        
-        # If scaled array has 26 features but model needs 27, append dummy column
-        if scaled_data.shape[1] < expected_model_features:
-            diff = expected_model_features - scaled_data.shape[1]
-            zeros_to_add = np.zeros((scaled_data.shape[0], diff))
-            scaled_data = np.hstack((scaled_data, zeros_to_add))
-
-        # Predict
+        # Scale & Predict cleanly without array manipulation hacks
+        scaled_data = scaler.transform(input_df)
         prediction = model.predict(scaled_data)
 
         st.subheader("Result:")
@@ -194,4 +192,3 @@ if st.button("Predict Loan Approval Status", use_container_width=True):
             
     except Exception as e:
         st.error(f"Error during prediction: {e}")
-        
