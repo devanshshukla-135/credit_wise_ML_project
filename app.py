@@ -23,37 +23,41 @@ st.markdown("Enter applicant details below to check loan eligibility.")
 def train_model():
     df = pd.read_csv('loan_approval_data.csv')
     
-    # Feature Engineering matching your Notebook
-    df['DTI_Ratio_sq'] = df['DTI_Ratio'] ** 2
-    df['Credit_Score_sq'] = df['Credit_Score'] ** 2
+    # Feature Engineering
+    if 'DTI_Ratio' in df.columns:
+        df['DTI_Ratio_sq'] = df['DTI_Ratio'] ** 2
+    if 'Credit_Score' in df.columns:
+        df['Credit_Score_sq'] = df['Credit_Score'] ** 2
     
     education_map = {'Undergraduate': 0, 'Graduate / Higher': 1}
     gender_male_map = {'Female': 0, 'Male': 1}
     marital_single_map = {'Married': 0, 'Single': 1}
     
+    # Check original string column names in CSV
     if 'Education_Level' in df.columns:
         df['Education_Level'] = df['Education_Level'].map(education_map)
-    if 'Gender_Male' in df.columns:
+    if 'Gender' in df.columns:
+        df['Gender_Male'] = df['Gender'].map(gender_male_map)
+        df.drop(columns=['Gender'], inplace=True)
+    elif 'Gender_Male' in df.columns:
         df['Gender_Male'] = df['Gender_Male'].map(gender_male_map)
-    if 'Marital_Status_Single' in df.columns:
+
+    if 'Marital_Status' in df.columns:
+        df['Marital_Status_Single'] = df['Marital_Status'].map(marital_single_map)
+        df.drop(columns=['Marital_Status'], inplace=True)
+    elif 'Marital_Status_Single' in df.columns:
         df['Marital_Status_Single'] = df['Marital_Status_Single'].map(marital_single_map)
         
     categorical_cols = ['Employment_Status', 'Employer_Category', 'Property_Area', 'Loan_Purpose']
     df = pd.get_dummies(df, columns=[c for c in categorical_cols if c in df.columns], drop_first=False)
     
     target_col = 'Loan_Approved' if 'Loan_Approved' in df.columns else 'Loan_Status'
+    
     X = df.drop(columns=[target_col])
+    
+    # Ensure all remaining columns are strictly numeric float (Drop leftover text strings if any)
+    X = X.select_dtypes(include=[np.number]).astype(float)
     y = df[target_col]
-
-    # Build DataFrame matching exact feature columns sequence
-    input_df = pd.DataFrame([row])[feature_cols]
-
-    # FORCE EVERYTHING TO NUMERIC (String Values Remove Fix)
-    input_df = input_df.apply(pd.to_numeric, errors='coerce').fillna(0.0)
-
-    try:
-        scaled_input = scaler.transform(input_df)
-        prediction = model.predict(scaled_input)
         
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
@@ -155,25 +159,22 @@ if st.button("Predict Loan Approval Status", use_container_width=True):
     if 'DTI_Ratio' in row: row['DTI_Ratio'] = float(dti_ratio)
     if 'Credit_Score' in row: row['Credit_Score'] = float(credit_score)
     
-    # UI par User "Married"/"Single" hi select karega, par backend me binary float ban jayega:
     if 'Marital_Status_Single' in row: row['Marital_Status_Single'] = float(marital_single_map[marital_status])
     if 'Gender_Male' in row: row['Gender_Male'] = float(gender_male_map[gender])
 
     # Map One-Hot Categorical Features
     active_dummies = [
-        employment_map[employment_status],
-        employer_cat_map[employer_category],
-        property_area_map[property_area],
-        loan_purpose_map[loan_purpose]
+        employment_map.get(employment_status),
+        employer_cat_map.get(employer_category),
+        property_area_map.get(property_area),
+        loan_purpose_map.get(loan_purpose)
     ]
     for dummy in active_dummies:
-        if dummy in row:
+        if dummy and dummy in row:
             row[dummy] = 1.0
 
     # Build DataFrame matching exact feature columns sequence
     input_df = pd.DataFrame([row])[feature_cols]
-    
-    # 💡 IMPORTANT FIX: Sabhi columns ko strictly numeric float convert karein
     input_df = input_df.astype(float)
 
     try:
