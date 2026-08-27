@@ -104,20 +104,19 @@ if st.button("Predict Loan Status", use_container_width=True):
         'DTI_Ratio_sq': dti_ratio_sq,
         'Credit_Score_sq': credit_score_sq
     }])
-    # 1. Expected features ki list load karein
+
 with open('features.pkl', 'rb') as f:
     expected_features = pickle.load(f)
 
-# 2. Jo column miss ho raha hai use 0 se fill karein
 for col in expected_features:
-    if col not in df.columns: 
-        df[col] = 0
+    if col not in input_df.columns: 
+        input_df[col] = 0
 
-# 3. Exactly 27 columns ka correct order set karein
-df = df[expected_features]
 
-# 4. Uske baad Scaling aur Prediction karein
-scaled_data = scaler.transform(df)
+input_df = input_df[expected_features]
+
+
+scaled_data = scaler.transform(input_df)
 prediction = model.predict(scaled_data)
 
    
