@@ -58,7 +58,7 @@ with col_sub2:
     dti_ratio = st.number_input("DTI Ratio", min_value=0.0, max_value=1.0, value=0.30)
 
 if st.button("Predict Loan Status"):
-    # 1. Map manual categorical inputs
+    # 1. Map all possible encoded columns explicitly
     raw_data = {
         'Age': age,
         'Income': income,
@@ -71,15 +71,21 @@ if st.button("Predict Loan Status"):
         'DTI_Ratio': dti_ratio,
         'Dependents': dependents,
         'Gender_Male': 1 if gender == "Male" else 0,
+        'Gender_Female': 1 if gender == "Female" else 0,
         'Marital_Status_Married': 1 if marital_status == "Married" else 0,
+        'Marital_Status_Single': 1 if marital_status == "Single" else 0,
         'Education_Graduate': 1 if education_level == "Graduate" else 0,
         'Education_Postgraduate': 1 if education_level == "Postgraduate" else 0,
+        'Education_Undergraduate': 1 if education_level == "Undergraduate" else 0,
         'Employment_Status_Salaried': 1 if employment_status == "Salaried" else 0,
         'Employment_Status_Self-Employed': 1 if employment_status == "Self-Employed" else 0,
+        'Employment_Status_Unemployed': 1 if employment_status == "Unemployed" else 0,
         'Employer_Category_Government': 1 if employer_category == "Government" else 0,
         'Employer_Category_Private': 1 if employer_category == "Private" else 0,
+        'Employer_Category_Business': 1 if employer_category == "Business" else 0,
         'Property_Area_Semiurban': 1 if property_area == "Semiurban" else 0,
         'Property_Area_Urban': 1 if property_area == "Urban" else 0,
+        'Property_Area_Rural': 1 if property_area == "Rural" else 0,
         'Loan_Purpose_Car': 1 if loan_purpose == "Car" else 0,
         'Loan_Purpose_Education': 1 if loan_purpose == "Education" else 0,
         'Loan_Purpose_Home': 1 if loan_purpose == "Home" else 0,
@@ -88,27 +94,27 @@ if st.button("Predict Loan Status"):
         'Credit_Score_sq': credit_score ** 2
     }
 
-input_df = pd.DataFrame([raw_data])
+    input_df = pd.DataFrame([raw_data])
 
-    # 1. Align features strictly with features.pkl order
+    # 2. Strict alignment with expected_features list
     if expected_features:
         input_df = input_df.reindex(columns=expected_features, fill_value=0)
 
-    # 2. Scale ONLY ONCE
+    # 3. Scale and Predict
     scaled_array = scaler.transform(input_df)
-
-    # 3. Ensure exact shape matches Naive Bayes model requirement
+    
+    # Optional check: If target_n doesn't match, align safely
     target_n = model.n_features_in_
-    if scaled_array.shape[1] < target_n:
-        scaled_array = np.pad(scaled_array, ((0, 0), (0, target_n - scaled_array.shape[1])), 'constant')
-    elif scaled_array.shape[1] > target_n:
+    if scaled_array.shape[1] != target_n:
         scaled_array = scaled_array[:, :target_n]
 
-    # 4. Predict
     prediction = model.predict(scaled_array)
 
     st.subheader("Result:")
     if prediction[0] == 1:
+        st.success("🎉 Congratulations! The Loan application is APPROVED.")
+    else:
+        st.error("❌ Sorry, The Loan application is REJECTED.")
         st.success("🎉 Congratulations! The Loan application is APPROVED.")
     else:
         st.error("❌ Sorry, The Loan application is REJECTED.")
