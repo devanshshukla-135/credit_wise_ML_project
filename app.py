@@ -73,6 +73,7 @@ if st.button("Predict Loan Status", use_container_width=True):
     purpose_edu = 1 if loan_purpose == "Education" else 0
     purpose_home = 1 if loan_purpose == "Home" else 0
     purpose_personal = 1 if loan_purpose == "Personal" else 0
+    
 
     # Build DataFrame matching exact feature list and column order
     input_df = pd.DataFrame([{
@@ -103,11 +104,23 @@ if st.button("Predict Loan Status", use_container_width=True):
         'DTI_Ratio_sq': dti_ratio_sq,
         'Credit_Score_sq': credit_score_sq
     }])
+    # 1. Expected features ki list load karein
+with open('features.pkl', 'rb') as f:
+    expected_features = pickle.load(f)
 
-    # Transform & Predict
-    scaled_data = scaler.transform(input_df)
-    prediction = model.predict(scaled_data)
+# 2. Jo column miss ho raha hai use 0 se fill karein
+for col in expected_features:
+    if col not in df.columns: 
+        df[col] = 0
 
+# 3. Exactly 27 columns ka correct order set karein
+df = df[expected_features]
+
+# 4. Uske baad Scaling aur Prediction karein
+scaled_data = scaler.transform(df)
+prediction = model.predict(scaled_data)
+
+   
     st.subheader("Result:")
     if prediction[0] == 1:
         st.success("🎉 Congratulations! The Loan application is APPROVED.")
