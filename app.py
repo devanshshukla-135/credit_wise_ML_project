@@ -118,7 +118,6 @@ st.markdown("---")
 
 # --- 4. Prediction Logic ---
 if st.button("Predict Loan Approval Status", use_container_width=True):
-    # EXACT 27 FEATURES LIST (Added 'Applicant_Income')
     all_features = [
         'Applicant_Income', 'Coapplicant_Income', 'Age', 'Dependents', 'Existing_Loans', 
         'Savings', 'Collateral_Value', 'Loan_Amount', 'Loan_Term', 'Education_Level',
@@ -131,15 +130,12 @@ if st.button("Predict Loan Approval Status", use_container_width=True):
         'Loan_Purpose_Home', 'Loan_Purpose_Personal'
     ]
     
-    # 4.1 Base DataFrame with Zeros (Exactly 27 Columns)
     input_df = pd.DataFrame(columns=all_features)
     input_df.loc[0] = [0.0] * len(all_features)
 
-    # 4.2 Feature transformations
     dti_ratio_sq = dti_ratio ** 2
     credit_score_sq = float(credit_score) ** 2 
 
-    # 4.3 Fill Numerical features
     input_df['Applicant_Income'] = float(applicant_income)
     input_df['Age'] = float(applicant_age)
     input_df['Coapplicant_Income'] = float(coapplicant_income)
@@ -153,11 +149,9 @@ if st.button("Predict Loan Approval Status", use_container_width=True):
     input_df['DTI_Ratio_sq'] = dti_ratio_sq
     input_df['Credit_Score_sq'] = credit_score_sq
 
-    # 4.4 Binary Mappings
     input_df['Marital_Status_Single'] = float(marital_single_map[marital_status])
     input_df['Gender_Male'] = float(gender_male_map[gender])
 
-    # 4.5 One-Hot Encoded Dummies
     one_hot_columns_to_fill = [
         employment_map[employment_status],
         employer_cat_map[employer_category],
@@ -169,16 +163,27 @@ if st.button("Predict Loan Approval Status", use_container_width=True):
         if col in input_df.columns:
             input_df[col] = 1.0
 
-    # 5. Prediction with Scaler Alignment
     try:
-        # Align column order strictly using scaler's expected features
+        # Check scaler's expected features dynamically
         if hasattr(scaler, "feature_names_in_"):
-            expected_scaler_order = list(scaler.feature_names_in_)
+            scaler_order = list(scaler.feature_names_in_)
+            aligned_input = input_df.reindex(columns=scaler_order).fillna(0)
         else:
-            expected_scaler_order = all_features
+            aligned_input = input_df.copy()
 
-        aligned_input_df = input_df.reindex(columns=expected_scaler_order)
-        scaled_data = scaler.transform(aligned_input_df)
+        # Transform using Scaler
+        scaled_data = scaler.transform(aligned_input)
+
+        # Check model's expected feature count dynamically
+        expected_model_features = getattr(model, "n_features_in_", 27)
+        
+        # If scaled array has 26 features but model needs 27, append dummy column
+        if scaled_data.shape[1] < expected_model_features:
+            diff = expected_model_features - scaled_data.shape[1]
+            zeros_to_add = np.zeros((scaled_data.shape[0], diff))
+            scaled_data = np.hstack((scaled_data, zeros_to_add))
+
+        # Predict
         prediction = model.predict(scaled_data)
 
         st.subheader("Result:")
@@ -189,3 +194,4 @@ if st.button("Predict Loan Approval Status", use_container_width=True):
             
     except Exception as e:
         st.error(f"Error during prediction: {e}")
+        
